@@ -3,27 +3,9 @@ Self-Driving Car Engineer Nanodegree Program
 
 ---
 
-## Dependencies
 
-* cmake >= 3.5
- * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1(mac, linux), 3.81(Windows)
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets)
-  * Run either `install-mac.sh` or `install-ubuntu.sh`.
-  * If you install from source, checkout to commit `e94b6e1`, i.e.
-    ```
-    git clone https://github.com/uWebSockets/uWebSockets
-    cd uWebSockets
-    git checkout e94b6e1
-    ```
-    Some function signatures have changed in v0.14.x. See [this PR](https://github.com/udacity/CarND-MPC-Project/pull/3) for more details.
+
+## Dependencies
 
 * **Ipopt and CppAD:** Please refer to [this document](https://github.com/udacity/CarND-MPC-Project/blob/master/install_Ipopt_CppAD.md) for installation instructions.
 * [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page). This is already part of the repo so you shouldn't have to worry about it.
@@ -38,71 +20,154 @@ Self-Driving Car Engineer Nanodegree Program
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
 
-## Tips
+### Attribution
+The infrastructure code in this project is supplied from project repository listed above.  Much of the model code was taken from the lesson quiz [Mind the Line](https://github.com/udacity/CarND-MPC-Quizzes).  As well as from the class [Walkthrough](https://youtu.be/bOQuhpz3YfU)
 
-1. It's recommended to test the MPC on basic examples to see if your implementation behaves as desired. One possible example
-is the vehicle starting offset of a straight line (reference). If the MPC implementation is correct, after some number of timesteps
-(not too many) it should find and track the reference line.
-2. The `lake_track_waypoints.csv` file has the waypoints of the lake track. You could use this to fit polynomials and points and see of how well your model tracks curve. NOTE: This file might be not completely in sync with the simulator so your solution should NOT depend on it.
-3. For visualization this C++ [matplotlib wrapper](https://github.com/lava/matplotlib-cpp) could be helpful.)
-4.  Tips for setting up your environment are available [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
-5. **VM Latency:** Some students have reported differences in behavior using VM's ostensibly a result of latency.  Please let us know if issues arise as a result of a VM environment.
-
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
 
 ## Project Instructions and Rubric
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+### Your code should compile.
 
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/b1ff3be0-c904-438e-aad3-2b5379f0e0c3/concepts/1a2255a0-e23c-44cf-8d41-39b8a3c8264a)
-for instructions and the project rubric.
+Code compiles and runs with the standard instructions.
 
-## Hints!
+### Notes on value names
 
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
+px - position x (of the vehicle)
+py - position y (of the vehicle)
+psi - heading of the vehicle
+v - velocity
+cte - cross track error
+epsi - heading error
 
-## Call for IDE Profiles Pull Requests
+NOTE - In this write up I do not distinguish between map and vehicle coordinates.  Most processing is done in vehicle coordinates.
 
-Help your fellow students!
+### The Model
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
+#### Model State
 
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
+The model state is represented by a vector of {px, py, psi, v, cte, epsi}.  The state is taken from data sent by the simulator.  The data is transformed
+into a vehicle centric coordinate space such that {px, py, psi} are 0 after
+the transformation.  This is essentially required since the simulator expects
+this transformation for the returned plotted center line and vehicle path projection.
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
+The simulator also supplies way points for the center of the road(desired path).  These waypoints are fitted to a 3rd order polynomial.  The polynomial
+parameters are used to compute cte and epsi error values.
 
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
+#### Model Equations
 
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
+The behavior of the vehicle is modeled with the following kinematic equations:
 
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+      x1 = (x0 + v0 * CppAD::cos(psi0) * dt);
+      y1 = (y0 + v0 * CppAD::sin(psi0) * dt);
+      psi1 = (psi0 + v0 * delta0 / Lf * dt);
+      v1 = (v0 + a0 * dt);
+      cte1 = ((f0 - y0) + v0 * CppAD::sin(epsi0) * dt);
+      epsi1 = ((psi0 - psides0) + v0 * delta0 / Lf * dt);
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+Where f0 is the result of a function that uses the derived coefficients and y0 to provide a distance from the desired path.
+
+In main.cpp in order to provide an estimated state at 100ms into the future, a 
+simplified version of the above equations are used.  Simplified due to the fact that x, y and psi are 0 at that point after the transformation.
+
+#### Model Cost
+
+I used the cost model from the MPC quiz and the walkthrough.  It sets
+cost values for error states(cte, epsi) and velocity.  With very high 
+cost associated with the error functions.  It also sets contraints on the 
+actuators for both minimizations of use and sequential state to state changes.
+
+Given the weights on the minimization of use costs, they likely could be 
+dropped with little effect.
+
+```
+    // The part of the cost bsed on the reference state
+    for (int t = 0; t < N; t++) {
+      fg[0] += w_cte * CppAD::pow(vars[cte_start + t] - ref_cte, 2);
+      fg[0] += w_epsi * CppAD::pow(vars[epsi_start + t] - ref_epsi, 2);
+      fg[0] += w_ref_v * CppAD::pow(vars[v_start + t] - ref_v, 2);
+    }
+
+    // Minimize the use of actuators
+    for (int t = 0; t < N - 1; t++) {
+      fg[0] += w_delta * CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += w_a * CppAD::pow(vars[a_start + t], 2);
+    }
+
+    // Minimize the value gap between sequential actuations
+    for (int t = 0; t < N - 2; t++) {
+      fg[0] += w_delta_diff * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += w_a_diff * CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+    }
+```
+
+The values I ended up using are listed below.  Discussion of these values is below.
+
+```
+// Goal states for cte, epsi and velocity
+double ref_cte = 0;
+double ref_epsi = 0;
+double ref_v = 120;
+
+// Very important to constrain errors
+const int w_cte = 2500;
+const int w_epsi = 2500;
+const double w_ref_v = 1.0;
+
+// Not important to constrain actuators
+const int w_delta = 1;
+const int w_a = 1;
+
+// Important to minimize the gap between sequential actuators to reduce jerk
+const int w_delta_diff = 200;
+const int w_a_diff = 5;
+```
+
+Even at fairly low target speeds the cte and epsi costs need to be fairly high
+in order to get the model to perform and the car to stay on track.  I also
+tried lower weights for cte and epsi with changing the power to the 3rd and 
+4th power.   It frequently resulted in an unstable vehicle path.
+
+I chose a fairly high ref_v value the penalizes distance from the target speed
+of 120.  At this target speed the model is extremely sensitive to the weight
+applied to that cost(w_ref_v=1.0).  At w_rev_v=2.0 the model crashes quite quickly in certain turns, at 1.5 it would probably pass, but occasionally crashes multiple laps in.
+
+At this speed, the model is also very sensitive to w_a_diff.  5 appears to be 
+the maximum that it will successfully complete.  This is a somewhat limiting 
+factor in getting the car up to its target speed.  It would be nice to be able
+to separate the acceleration into positive acceleration costs and negative
+acceleration costs.
+
+### Timestep Length and Elsapsed Duration(N & dt)
+
+All of my experiments maintained a ratio of 100:1 of N to dt.  My final values were N = 10 and dt = .1.  I also tried dt values of .8, .12 and .14(with N = dt * 100).  This ratio has no actual meaning and these values likely should not have been changed in concert while testing.
+
+The values of dt=.8 and N=8 did appear to give some instability when tested with the latency included.  No improvement was noted for dt of .12 and .14 so I
+defaulted to the .1 value.
+
+### Polynomial Fitting and MPC Preprocessing
+
+A polynomial was fitted to the waypoints.  I generated an additional set of values from the polynomial for return in the next_x and next_y json values to give more points to plot rather than returning transformed ptsx and ptsy values
+from the input telemetry.
+
+The waypoints returned are not pre-processed.  However, the coefficients are derived from the pre-processed telemetry waypoints.  The processing is a rotation and translation to bring the points into a vehicle coordinate system
+with the first point having x, y and psi values of 0.
+
+###  Model Predictive Control with Latency
+
+The model predictive control is implemented with the kinematic equations listed
+above.  The 100ms latency is dealt with by projecting the state of the vehicle 
+100ms into the future and using that state as input to the MPC unit so that when the control parameters are used after the 100ms delay the are the correct
+actions.
+
+I did not make an estimate on the velocity parameter since the acceleration was
+not available from the simulator.  I did try using the throttle position as a proxy for the acceleration as was mentioned in the project walk through.
+This generated significant instability in the car in low speed times when coming up to the target speed and during corners.  The model's stability significantly improved when I used the prior velocity.  The prior velocity is a
+reasonable proxy since it does not change much in the change in time between steps.
+
+### Simulation
+
+With the submitted parameters the vehicle successfully navigates the track.  At
+the current settings I believe it also does not touch the red/white turn markers.
+
+
+
